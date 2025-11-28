@@ -1,0 +1,46 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - src/**
+      - scripts/**
+      - .github/workflows/deploy.yml
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Marcar scripts como ejecutables
+        run: chmod +x scripts/*.sh || true
+
+      - name: Construir imagen Docker
+        run: docker build -f src/Dockerfile -t mi-app:latest src
+
+      - name: Smoke test del contenedor
+        run: |
+          docker run -d -p 3000:3000 --name mi-app mi-app:latest
+          sleep 3
+          curl -f http://localhost:3000 || (docker logs mi-app && exit 1)
+          docker rm -f mi-app
+
+  # Descomenta si quieres desplegar con tus scripts
+  # deploy:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'workflow_dispatch'
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #     - name: Ejecutar deploy Blue-Green
+  #       run: bash scripts/deploy.sh
+  #       env:
+  #         TARGET_HOST: ${{ secrets.TARGET_HOST }}
+  #         TARGET_USER: ${{ secrets.TARGET_USER }}
+  #         SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
